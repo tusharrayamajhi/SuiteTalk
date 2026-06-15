@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Hotel {
+  id            Int             @id @default(autoincrement())
+  name          String          @db.VarChar(100)
+  slug          String          @unique @db.VarChar(50)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  rooms         Room[]
+  sessions      StaySession[]
+  requests      Request[]
+  kbEntries     KnowledgeBase[]
+  menuItems     MenuItem[]
+  settings      Setting[]
+  staff         Staff[]
+
+  @@map("hotels")
+}
+
+model Staff {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(100)
+  password  String   @db.VarChar(100)
+  role      String   @default("STAFF") @db.VarChar(20) // OWNER, MANAGER, STAFF
+  hotelId   Int      @map("hotel_id")
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("staff")
+}
+
+model Room {
+  roomNumber String        @id @map("room_number") @db.VarChar(10)
+  roomType   String?       @map("room_type") @db.VarChar(50)
+  guestName  String?       @map("guest_name") @db.VarChar(100)
+  status     String        @default("occupied") @db.VarChar(20)
+  hotelId    Int?          @default(1) @map("hotel_id")
+  hotel      Hotel?        @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  requests   Request[]
+  sessions   StaySession[]
+
+  @@map("rooms")
+}
+
+model StaySession {
+  id            Int             @id @default(autoincrement())
+  roomNumber    String          @map("room_number") @db.VarChar(10)
+  guestName     String          @map("guest_name") @db.VarChar(100)
+  checkIn       DateTime        @default(now()) @map("check_in")
+  checkOut      DateTime?       @map("check_out")
+  status        String          @default("active") @db.VarChar(20) // active, completed
+  hotelId       Int?            @default(1) @map("hotel_id")
+  hotel         Hotel?          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  room          Room            @relation(fields: [roomNumber], references: [roomNumber])
+  conversations Conversation[]
+  recordings    CallRecording[]
+
+  @@map("stay_sessions")
+}
+
+model CallRecording {
+  id         Int         @id @default(autoincrement())
+  sessionId  Int         @map("session_id")
+  roomNumber String      @map("room_number") @db.VarChar(10)
+  fileName   String      @map("file_name")
+  durationMs Int         @default(0) @map("duration_ms")
+  startedAt  DateTime    @default(now()) @map("started_at")
+  endedAt    DateTime?   @map("ended_at")
+  hotelId    Int?        @default(1) @map("hotel_id")
+  session    StaySession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@map("call_recordings")
+}
+
+model Conversation {
+  id        Int         @id @default(autoincrement())
+  sessionId Int         @map("session_id")
+  role      String      @db.VarChar(10) // guest, ai
+  content   String      @db.Text
+  toolCalls Json?       @map("tool_calls")
+  createdAt DateTime    @default(now()) @map("created_at")
+  session   StaySession @relation(fields: [sessionId], references: [id])
+
+  @@map("conversations")
+}
+
+model Request {
+  id          Int      @id @default(autoincrement())
+  roomNumber  String   @map("room_number") @db.VarChar(10)
+  requestType String   @map("request_type") @db.VarChar(50)
+  description String?
+  urgency     String   @default("normal") @db.VarChar(20)
+  status      String   @default("pending") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  hotelId     Int?     @default(1) @map("hotel_id")
+  hotel       Hotel?   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  room        Room     @relation(fields: [roomNumber], references: [roomNumber])
+
+  @@map("requests")
+}
+
+model KnowledgeBase {
+  id        Int                        @id @default(autoincrement())
+  content   String
+  category  String?                    @db.VarChar(50)
+  embedding Unsupported("vector(768)")?
+  hotelId   Int?                       @default(1) @map("hotel_id")
+  hotel     Hotel?                     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_base")
+}
+
+model MenuItem {
+  id          Int      @id @default(autoincrement())
+  itemName    String   @map("item_name") @db.VarChar(100)
+  category    String?  @db.VarChar(50)
+  price       Decimal? @db.Decimal(10, 2)
+  description String?
+  available   Boolean  @default(true)
+  hotelId     Int?     @default(1) @map("hotel_id")
+  hotel       Hotel?   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@map("menu")
+}
+
+model Setting {
+  id      Int    @id @default(autoincrement())
+  key     String @db.Text
+  value   String @db.Text
+  hotelId Int?   @default(1) @map("hotel_id")
+  hotel   Hotel? @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@unique([hotelId, key])
+  @@map("settings")
+}
